@@ -1,0 +1,170 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "buildNumber": {
+      "type": "string"
+    },
+    "businessUnit": {
+      "type": "string",
+      "minLength": 1,
+      "metadata": {
+        "description": "Name of a business unit whom integration belongs to."
+      }
+    },
+    "resourcePrefix": {
+      "type": "string",
+      "minLength": 1,
+      "metadata": {
+        "description": "Prefix of the resource names."
+      }
+    }
+  },
+  "variables": {
+    "functionAppStorageAccountInstanceName": "[concat(uniqueString(resourceGroup().id), take(toLower(parameters('businessUnit')),8), 'fun')]",
+    "sharedStorageAccountInstanceName": "[concat(uniqueString(resourceGroup().id), 'sharedsa')]",
+    "sharedStorageAccountBlobApiConnectionName": "[concat(parameters('resourcePrefix'), 'api-shared-sa-blob', '-', uniqueString(resourceGroup().id))]",
+
+    "sharedStorageAccountTableApiConnectionName": "[concat(parameters('resourcePrefix'), 'api-shared-sa-table', '-', uniqueString(resourceGroup().id))]"
+  },
+  "resources": [
+    {
+      "name": "[variables('functionAppstorageAccountInstanceName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2019-06-01",
+      "dependsOn": [],
+      "tags": {
+        "BuildNumber": "[parameters('buildNumber')]",
+        "BusinessUnit": "[parameters('businessUnit')]"
+      },
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+      "name": "[variables('sharedStorageAccountInstanceName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2019-06-01",
+      "dependsOn": [],
+      "tags": {
+        "BuildNumber": "[parameters('buildNumber')]",
+        "BusinessUnit": "Shared"
+      },
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "supportsHttpsTrafficOnly": true
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Storage/storageAccounts/blobServices",
+          "apiVersion": "2022-09-01",
+          "name": "[concat(variables('sharedStorageAccountInstanceName'), '/default')]",
+          "dependsOn": [
+            "[variables('sharedStorageAccountInstanceName')]"
+          ],
+          "properties": {
+            "IsVersioningEnabled": true
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "location": "[resourceGroup().location]",
+      "name": "[variables('sharedStorageAccountBlobApiConnectionName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('sharedStorageAccountInstanceName'))]"
+      ],
+      "properties": {
+        "api": {
+          "id": "[concat('subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureblob')]"
+        },
+        "displayName": "[variables('sharedStorageAccountBlobApiConnectionName')]",
+        "parameterValues": {
+          "accountName": "[variables('sharedStorageAccountInstanceName')]",
+          "accessKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('sharedStorageAccountInstanceName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "location": "[resourceGroup().location]",
+      "name": "[variables('sharedStorageAccountTableApiConnectionName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('sharedStorageAccountInstanceName'))]"
+      ],
+      "properties": {
+        "api": {
+          "id": "[concat('subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuretables')]"
+        },
+        "displayName": "[variables('sharedStorageAccountTableApiConnectionName')]",
+        "parameterValues": {
+          "storageaccount": "[variables('sharedStorageAccountInstanceName')]",
+          "sharedkey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('sharedStorageAccountInstanceName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value]"
+        }
+      }
+    },
+    {
+      "name": "[concat(variables('sharedStorageAccountInstanceName'),'/default')]",
+      "type": "Microsoft.Storage/storageAccounts/managementPolicies",
+      "apiVersion": "2022-09-01",
+      "properties": {
+        "policy": {
+          "rules": [
+            {
+              "enabled": true,
+              "name": "deleteafterninetydays",
+              "type": "Lifecycle",
+              "definition": {
+                "actions": {
+                  "baseBlob": {
+                    "delete": {
+                      "daysAfterModificationGreaterThan": 90
+                    }
+                  }
+                },
+                "filters": {
+                  "blobTypes": [
+                    "blockBlob"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[variables('sharedStorageAccountInstanceName')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "functionAppStorageAccountName": {
+      "type": "string",
+      "value": "[variables('functionAppstorageAccountInstanceName')]"
+    },
+    "sharedStorageAccountName": {
+      "type": "string",
+      "value": "[variables('sharedStorageAccountInstanceName')]"
+    },
+    "sharedStorageAccountBlobApiConnectionName": {
+      "type": "string",
+      "value": "[variables('sharedStorageAccountBlobApiConnectionName')]"
+    },
+    "sharedStorageAccountTableApiConnectionName": {
+      "type": "string",
+      "value": "[variables('sharedStorageAccountTableApiConnectionName')]"
+    }
+  }
+}
