@@ -5,7 +5,7 @@ This GitHub repository provides a .NET Core 6 Azure Function App designed for au
 The function uses Azure's existing storage and to access it runs the function locally using these links:
 
 A GET API call to list all logs for the specific time period (from/to)
-  - {localhost}/api/logs?from={time}&to={time} | Time example format is: 2024-02-22T12:39:19.163Z
+  - {localhost}/api/logs?from={time}&to={time} | Time example format is: 2024-02-22T12:39:19.163Z or 12:39
 
 A GET API call to fetch a payload from blob for the specific log entry
   - {localhost}/api/payload/{logid}
