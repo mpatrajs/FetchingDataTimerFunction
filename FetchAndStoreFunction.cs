@@ -47,27 +47,43 @@ namespace FetchingDataTimerFunction
 
       private static async Task StorePayloadInBlob(string blobName, string payload, ILogger log)
       {
-         var blobClient = storageAccount.CreateCloudBlobClient();
-         var container = blobClient.GetContainerReference("payloads");
-         await container.CreateIfNotExistsAsync();
+         try
+         {
+            var blobClient = storageAccount.CreateCloudBlobClient();
+            var container = blobClient.GetContainerReference("payloads");
+            await container.CreateIfNotExistsAsync();
 
-         var blob = container.GetBlockBlobReference(blobName);
-         await blob.UploadTextAsync(payload);
-         log.LogInformation($"Payload successfully stored in Blob: {blobName}");
+            var blob = container.GetBlockBlobReference(blobName);
+            await blob.UploadTextAsync(payload);
+            log.LogInformation($"Payload successfully stored in Blob: {blobName}");
+         }
+         catch (Exception ex)
+         {
+            log.LogError($"Error storing payload in Blob: {blobName}. Exception: {ex.Message}");
+         }
       }
+
 
       private static async Task LogAttempt(LogEntity entity, bool isSuccess, ILogger log)
       {
-         var tableClient = storageAccount.CreateCloudTableClient();
-         var table = tableClient.GetTableReference("log");
-         await table.CreateIfNotExistsAsync();
+         try
+         {
+            var tableClient = storageAccount.CreateCloudTableClient();
+            var table = tableClient.GetTableReference("log");
+            await table.CreateIfNotExistsAsync();
 
-         entity.Timestamp = DateTimeOffset.UtcNow;
-         entity.Success = isSuccess;
+            entity.Timestamp = DateTimeOffset.UtcNow;
+            entity.Success = isSuccess;
 
-         var insertOperation = TableOperation.Insert(entity);
-         await table.ExecuteAsync(insertOperation);
-         log.LogInformation($"Log attempt for entity: {entity.RowKey}, Success: {isSuccess}");
+            var insertOperation = TableOperation.Insert(entity);
+            await table.ExecuteAsync(insertOperation);
+            log.LogInformation($"Log attempt for entity: {entity.RowKey}, Success: {isSuccess}");
+         }
+         catch (Exception ex)
+         {
+            log.LogError($"Error logging attempt for entity: {entity.RowKey}, Success: {isSuccess}. Exception: {ex.Message}");
+         }
       }
+
    }
 }
